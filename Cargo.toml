@@ -1,0 +1,8 @@
+[package]
+name = "poisson"
+version = "0.1.0"
+authors = ["Masaki Hara <ackie.h.gmai@gmail.com>"]
+
+[dependencies]
+num = "0.1.25"
+nalgebra = "0.2.17"
