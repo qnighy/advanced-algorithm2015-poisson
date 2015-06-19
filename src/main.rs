@@ -1,6 +1,8 @@
 extern crate num;
 extern crate nalgebra;
 
+use std::fs;
+use std::fs::File;
 use std::io::Write;
 use std::f64;
 use nalgebra::Vec2;
@@ -113,7 +115,7 @@ fn vecminus3(x : &Vec<f64>, y : &Vec<f64>, z : &mut Vec<f64>) {
 }
 
 fn main() {
-    const split : usize = 1000;
+    const split : usize = 100;
     const delta : f64 = 1.0 / (split as f64);
     let calc_pos = |xi: usize, yi: usize| {
         (xi - 1) + (yi - 1) * (split - 1)
@@ -130,26 +132,26 @@ fn main() {
         let xi = i % (split - 1) + 1;
         let yi = i / (split - 1) + 1;
         if yi < split {
-            b_elem -= u_laplace(calc_x(xi), calc_y(yi));
+            b_elem += delta.powi(2) * u_laplace(calc_x(xi), calc_y(yi));
             vec.push((calc_pos(xi, yi), 4.0));
             if xi > 1 {
                 vec.push((calc_pos(xi - 1, yi), -1.0));
             } else {
-                b_elem += delta.powi(2) * u(0.0, calc_y(yi));
+                b_elem -= u(0.0, calc_y(yi));
             }
             if xi < split-1 {
                 vec.push((calc_pos(xi + 1, yi), -1.0));
             } else {
-                b_elem += delta.powi(2) * u(1.0, calc_y(yi));
+                b_elem -= u(1.0, calc_y(yi));
             }
             if yi > 1 {
                 vec.push((calc_pos(xi, yi - 1), -1.0));
             } else {
-                b_elem += delta.powi(2) * u(calc_x(xi), 0.0);
+                b_elem -= u(calc_x(xi), 0.0);
             }
             vec.push((calc_pos(xi, yi + 1), -1.0));
         } else {
-            b_elem += delta * u_grad(calc_x(xi), 1.0).y;
+            b_elem -= delta * u_grad(calc_x(xi), 1.0).y;
             vec.push((calc_pos(xi, yi), 1.0));
             vec.push((calc_pos(xi, yi - 1), -1.0));
         }
@@ -200,6 +202,9 @@ fn main() {
             *pi = ri + beta * *pi;
         }
     }
+    writeln!(&mut std::io::stderr(), "done!");
+    let mut result_file = File::create("result.txt").unwrap();
+    let mut expect_file = File::create("expect.txt").unwrap();
     let xvec = x;
     for xi in 0..split+1 {
         for yi in 0..split+1 {
@@ -211,8 +216,10 @@ fn main() {
                 } else {
                     xvec[calc_pos(xi, yi)]
                 };
-            println!("{} {} {}", x, y, z);
+            writeln!(&mut result_file, "{} {} {}", x, y, z);
+            writeln!(&mut expect_file, "{} {} {}", x, y, u(x, y));
         }
-        println!("")
+        writeln!(&mut result_file, "");
+        writeln!(&mut expect_file, "");
     }
 }
