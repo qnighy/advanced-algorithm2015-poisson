@@ -77,3 +77,5 @@ Temporary Items
 /*-expect.png
 /*-result.txt
 /*-result.png
+/diff-*.txt
+/diff-*.png
