@@ -80,4 +80,12 @@ Temporary Items
 /diff-*.txt
 /diff-*.png
 /equation-*.txt
-/equation-*.png
+/laplacian-*.png
+/grad-*.png
+/overview.txt
+/error.png
+/residue.png
+/iteration.png
+/diff.gif
+/expect-and-result.gif
+

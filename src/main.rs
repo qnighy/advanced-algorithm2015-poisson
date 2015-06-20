@@ -66,7 +66,7 @@ fn u_grad(x : f64, y : f64) -> Vec2<f64> {
         if r2 < RT2 {
             P2RHO
         } else {
-            P2RHO / r2
+            P2RHO * RT2 / r2
         };
     r1vec * term1 + r2vec * term2
 }
@@ -231,18 +231,18 @@ fn solve(split : usize, num_iteration : &mut usize,
                 } else {
                     xvec[calc_pos(xi, yi)]
                 };
-            let _ = writeln!(&mut result_file, "{} {} {}", x, y, z);
-            let _ = writeln!(&mut expect_file, "{} {} {}", x, y, u(x, y));
-            let _ = writeln!(&mut diff_file, "{} {} {}", x, y, z-u(x, y));
-            let eqnval =
-                if xi == 0 || yi == 0 || xi == split {
-                    u(x, y)
-                } else if yi == split {
-                    u_grad(x, y).y
-                } else {
-                    u_laplace(x, y)
-                };
-            let _ = writeln!(&mut equation_file, "{} {} {}", x, y, eqnval);
+            let _ = writeln!(&mut result_file,
+                             "{:.20e} {:.20e} {:.20e}", x, y, z);
+            let _ = writeln!(&mut expect_file,
+                             "{:.20e} {:.20e} {:.20e}", x, y, u(x, y));
+            let _ = writeln!(&mut diff_file,
+                             "{:.20e} {:.20e} {:.20e}", x, y,
+                             (z-u(x, y)).abs());
+            let _ = writeln!(&mut equation_file,
+                             "{:.20e} {:.20e} {:.20e} {:.20e} {:.20e}", x, y,
+                             u_laplace(x, y),
+                             u_grad(x, y).x,
+                             u_grad(x, y).y);
         }
         let _ = writeln!(&mut result_file, "");
         let _ = writeln!(&mut expect_file, "");
@@ -270,6 +270,8 @@ fn solve(split : usize, num_iteration : &mut usize,
 }
 
 fn main() {
+    let mut overview_file = File::create("overview.txt").unwrap();
+
     let split_samples : Vec<usize> =
         (2..10).chain((1..10).map(|x| x * 10))
         .chain((1..4).map(|x| x * 100))
@@ -279,6 +281,9 @@ fn main() {
         let mut error_norm : f64 = 0.0f64;
         let mut residue_norm : f64 = 0.0f64;
         solve(split, &mut num_iteration, &mut error_norm, &mut residue_norm);
-        println!("split = {}, num_iteration = {}, error_norm = {}, residue_norm = {}", split, num_iteration, error_norm, residue_norm);
+        let _ = writeln!(&mut overview_file,
+                         "{} {:.20e} {} {:.20e} {:.20e}",
+                         split, 1.0/(split as f64),
+                         num_iteration, error_norm, residue_norm);
     }
 }
