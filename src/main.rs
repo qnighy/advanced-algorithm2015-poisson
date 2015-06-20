@@ -1,7 +1,6 @@
 extern crate num;
 extern crate nalgebra;
 
-use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::f64;
@@ -97,6 +96,7 @@ fn u(x : f64, y : f64) -> f64 {
 }
 
 fn vecdot(x : &Vec<f64>, y : &Vec<f64>) -> f64 {
+    assert!(x.len() == y.len());
     let mut sum : f64 = 0.0f64;
     for (xi, yi) in x.iter().zip(y.iter()) {
         sum += xi * yi;
@@ -104,19 +104,22 @@ fn vecdot(x : &Vec<f64>, y : &Vec<f64>) -> f64 {
     sum
 }
 fn vecpluseq_alpha(x : &mut Vec<f64>, alpha : f64, y : &Vec<f64>) {
+    assert!(x.len() == y.len());
     for (xi, yi) in x.iter_mut().zip(y.iter()) {
         *xi += alpha * yi;
     }
 }
 fn vecminus3(x : &Vec<f64>, y : &Vec<f64>, z : &mut Vec<f64>) {
+    assert!(x.len() == y.len());
+    assert!(x.len() == z.len());
     for ((xi, yi), zi) in x.iter().zip(y.iter()).zip(z.iter_mut()) {
         *zi = xi - yi;
     }
 }
 
-fn main() {
-    const split : usize = 100;
-    const delta : f64 = 1.0 / (split as f64);
+fn solve(split : usize, num_iteration : &mut usize,
+         error_norm : &mut f64, residue_norm : &mut f64) {
+    let delta : f64 = 1.0 / (split as f64);
     let calc_pos = |xi: usize, yi: usize| {
         (xi - 1) + (yi - 1) * (split - 1)
     };
@@ -132,26 +135,26 @@ fn main() {
         let xi = i % (split - 1) + 1;
         let yi = i / (split - 1) + 1;
         if yi < split {
-            b_elem += delta.powi(2) * u_laplace(calc_x(xi), calc_y(yi));
+            b_elem -= delta.powi(2) * u_laplace(calc_x(xi), calc_y(yi));
             vec.push((calc_pos(xi, yi), 4.0));
             if xi > 1 {
                 vec.push((calc_pos(xi - 1, yi), -1.0));
             } else {
-                b_elem -= u(0.0, calc_y(yi));
+                b_elem += u(0.0, calc_y(yi));
             }
             if xi < split-1 {
                 vec.push((calc_pos(xi + 1, yi), -1.0));
             } else {
-                b_elem -= u(1.0, calc_y(yi));
+                b_elem += u(1.0, calc_y(yi));
             }
             if yi > 1 {
                 vec.push((calc_pos(xi, yi - 1), -1.0));
             } else {
-                b_elem -= u(calc_x(xi), 0.0);
+                b_elem += u(calc_x(xi), 0.0);
             }
             vec.push((calc_pos(xi, yi + 1), -1.0));
         } else {
-            b_elem -= delta * u_grad(calc_x(xi), 1.0).y;
+            b_elem += delta * u_grad(calc_x(xi), 1.0).y;
             vec.push((calc_pos(xi, yi), 1.0));
             vec.push((calc_pos(xi, yi - 1), -1.0));
         }
@@ -180,18 +183,24 @@ fn main() {
     let mut r : Vec<f64> = zeros.clone();
     let mut ap : Vec<f64> = zeros.clone();
     a_mul(&x, &mut y);
-    vecminus3(&y, &b, &mut r);
+    vecminus3(&b, &y, &mut r);
     let mut p : Vec<f64> = r.clone();
+    *num_iteration = 0;
     loop {
+        *num_iteration += 1;
         a_mul(&p, &mut ap);
         let pap : f64 = vecdot(&p, &ap);
         let rr : f64 = vecdot(&r, &r);
         let alpha : f64 = rr / pap;
         vecpluseq_alpha(&mut x, alpha, &p);
         vecpluseq_alpha(&mut r, -alpha, &ap);
+        if *num_iteration % 50 == 0 {
+            a_mul(&x, &mut y);
+            vecminus3(&b, &y, &mut r);
+        }
         {
             let diff = vecdot(&r, &r) / bdot;
-            writeln!(&mut std::io::stderr(), "diff = {}", diff);
+            // let _ = writeln!(&mut std::io::stderr(), "diff = {}", diff);
             if diff < EPS {
                 break;
             }
@@ -202,10 +211,12 @@ fn main() {
             *pi = ri + beta * *pi;
         }
     }
-    writeln!(&mut std::io::stderr(), "done!");
-    let mut result_file = File::create("result.txt").unwrap();
-    let mut expect_file = File::create("expect.txt").unwrap();
     let xvec = x;
+
+    let mut result_file =
+        File::create(format!("s{:03}-result.txt", split)).unwrap();
+    let mut expect_file =
+        File::create(format!("s{:03}-expect.txt", split)).unwrap();
     for xi in 0..split+1 {
         for yi in 0..split+1 {
             let x : f64 = calc_x(xi);
@@ -216,10 +227,42 @@ fn main() {
                 } else {
                     xvec[calc_pos(xi, yi)]
                 };
-            writeln!(&mut result_file, "{} {} {}", x, y, z);
-            writeln!(&mut expect_file, "{} {} {}", x, y, u(x, y));
+            let _ = writeln!(&mut result_file, "{} {} {}", x, y, z);
+            let _ = writeln!(&mut expect_file, "{} {} {}", x, y, u(x, y));
         }
-        writeln!(&mut result_file, "");
-        writeln!(&mut expect_file, "");
+        let _ = writeln!(&mut result_file, "");
+        let _ = writeln!(&mut expect_file, "");
+    }
+
+    let mut zvec = zeros.clone();
+    for xi in 1..split {
+        for yi in 1..split+1 {
+            let x : f64 = calc_x(xi);
+            let y : f64 = calc_y(yi);
+            zvec[calc_pos(xi, yi)] = u(x, y);
+        }
+    }
+    let mut azvec = zeros.clone();
+    let mut azbvec = zeros.clone();
+    a_mul(&zvec, &mut azvec);
+    vecminus3(&azvec, &b, &mut azbvec);
+    *residue_norm = vecdot(&azbvec, &azbvec) / bdot;
+
+    let mut zxvec = zeros.clone();
+    vecminus3(&zvec, &xvec, &mut zxvec);
+    *error_norm = vecdot(&zxvec, &zxvec) / bdot;
+}
+
+fn main() {
+    let split_samples : Vec<usize> =
+        (2..10).chain((1..10).map(|x| x * 10))
+        .chain((1..4).map(|x| x * 100))
+        .collect::<Vec<usize>>();
+    for split in split_samples {
+        let mut num_iteration : usize = 0;
+        let mut error_norm : f64 = 0.0f64;
+        let mut residue_norm : f64 = 0.0f64;
+        solve(split, &mut num_iteration, &mut error_norm, &mut residue_norm);
+        println!("split = {}, num_iteration = {}, error_norm = {}, residue_norm = {}", split, num_iteration, error_norm, residue_norm);
     }
 }
