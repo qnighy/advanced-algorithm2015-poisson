@@ -219,6 +219,8 @@ fn solve(split : usize, num_iteration : &mut usize,
         File::create(format!("s{:03}-expect.txt", split)).unwrap();
     let mut diff_file =
         File::create(format!("diff-s{:03}.txt", split)).unwrap();
+    let mut equation_file =
+        File::create(format!("equation-s{:03}.txt", split)).unwrap();
     for xi in 0..split+1 {
         for yi in 0..split+1 {
             let x : f64 = calc_x(xi);
@@ -232,10 +234,20 @@ fn solve(split : usize, num_iteration : &mut usize,
             let _ = writeln!(&mut result_file, "{} {} {}", x, y, z);
             let _ = writeln!(&mut expect_file, "{} {} {}", x, y, u(x, y));
             let _ = writeln!(&mut diff_file, "{} {} {}", x, y, z-u(x, y));
+            let eqnval =
+                if xi == 0 || yi == 0 || xi == split {
+                    u(x, y)
+                } else if yi == split {
+                    u_grad(x, y).y
+                } else {
+                    u_laplace(x, y)
+                };
+            let _ = writeln!(&mut equation_file, "{} {} {}", x, y, eqnval);
         }
         let _ = writeln!(&mut result_file, "");
         let _ = writeln!(&mut expect_file, "");
         let _ = writeln!(&mut diff_file, "");
+        let _ = writeln!(&mut equation_file, "");
     }
 
     let mut zvec = zeros.clone();
